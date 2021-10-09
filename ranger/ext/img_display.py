@@ -6,7 +6,7 @@
 """Interface for drawing images into the console
 
 This module provides functions to draw images in the terminal using supported
-implementations, which are currently w3m, iTerm2 and urxvt.
+implementations.
 """
 
 from __future__ import (absolute_import, division, print_function)
@@ -22,7 +22,7 @@ import sys
 import warnings
 import json
 import threading
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
 from collections import defaultdict
 
 import termios
@@ -65,6 +65,52 @@ def move_cur(to_y, to_x):
     # on python2 stdout is already in binary mode, in python3 is accessed via buffer
     bin_stdout = getattr(sys.stdout, 'buffer', sys.stdout)
     bin_stdout.write(tparm)
+
+
+def get_font_dimensions():
+    """
+    Get the height and width of a character displayed in the terminal in
+    pixels.
+    """
+    farg = struct.pack("HHHH", 0, 0, 0, 0)
+    fd_stdout = sys.stdout.fileno()
+    fretint = fcntl.ioctl(fd_stdout, termios.TIOCGWINSZ, farg)
+    rows, cols, xpixels, ypixels = struct.unpack("HHHH", fretint)
+
+    return (xpixels // cols), (ypixels // rows)
+
+
+def image_fit_width(width, height, max_cols, max_rows, font_width=None, font_height=None):
+    if font_width is None or font_height is None:
+        font_width, font_height = get_font_dimensions()
+
+    max_width = font_width * max_cols
+    max_height = font_height * max_rows
+    if height > max_height:
+        if width > max_width:
+            width_scale = max_width / width
+            height_scale = max_height / height
+            min_scale = min(width_scale, height_scale)
+            max_scale = max(width_scale, height_scale)
+            if width * max_scale <= max_width and height * max_scale <= max_height:
+                return width * max_scale
+            return width * min_scale
+
+        scale = max_height / height
+        return width * scale
+    elif width > max_width:
+        scale = max_width / width
+        return width * scale
+
+    return width
+
+
+def get_image_dimensions(path):
+    """Determine image size using convert"""
+    width, height = check_output(["convert", path,
+                                  "-format", "%w %h", "info:"]) \
+        .split(b" ")
+    return int(width), int(height)
 
 
 class ImageDisplayError(Exception):
@@ -304,7 +350,7 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):
 
     def _generate_iterm2_input(self, path, max_cols, max_rows):
         """Prepare the image content of path for image display in iTerm2"""
-        image_width, image_height = self._get_image_dimensions(path)
+        image_width, image_height = get_image_dimensions(path)
         if max_cols == 0 or max_rows == 0 or image_width == 0 or image_height == 0:
             return ""
         image_width = self._fit_width(
@@ -325,25 +371,11 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):
         return text
 
     def _fit_width(self, width, height, max_cols, max_rows):
-        max_width = self.fm.settings.iterm2_font_width * max_cols
-        max_height = self.fm.settings.iterm2_font_height * max_rows
-        if height > max_height:
-            if width > max_width:
-                width_scale = max_width / width
-                height_scale = max_height / height
-                min_scale = min(width_scale, height_scale)
-                max_scale = max(width_scale, height_scale)
-                if width * max_scale <= max_width and height * max_scale <= max_height:
-                    return width * max_scale
-                return width * min_scale
+        font_width = self.fm.settings.iterm2_font_width
+        font_height = self.fm.settings.iterm2_font_height
 
-            scale = max_height / height
-            return width * scale
-        elif width > max_width:
-            scale = max_width / width
-            return width * scale
-
-        return width
+        return image_fit_width(
+                width, height, max_cols, max_rows, font_width, font_height)
 
     @staticmethod
     def _encode_image_content(path):
@@ -351,41 +383,47 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):
         with open(path, 'rb') as fobj:
             return base64.b64encode(fobj.read()).decode('utf-8')
 
-    @staticmethod
-    def _get_image_dimensions(path):
-        """Determine image size using imghdr"""
-        with open(path, 'rb') as file_handle:
-            file_header = file_handle.read(24)
-            image_type = imghdr.what(path)
-            if len(file_header) != 24:
-                return 0, 0
-            if image_type == 'png':
-                check = struct.unpack('>i', file_header[4:8])[0]
-                if check != 0x0d0a1a0a:
-                    return 0, 0
-                width, height = struct.unpack('>ii', file_header[16:24])
-            elif image_type == 'gif':
-                width, height = struct.unpack('<HH', file_header[6:10])
-            elif image_type == 'jpeg':
-                unreadable = OSError if PY3 else IOError
-                try:
-                    file_handle.seek(0)
-                    size = 2
-                    ftype = 0
-                    while not 0xc0 <= ftype <= 0xcf:
-                        file_handle.seek(size, 1)
-                        byte = file_handle.read(1)
-                        while ord(byte) == 0xff:
-                            byte = file_handle.read(1)
-                        ftype = ord(byte)
-                        size = struct.unpack('>H', file_handle.read(2))[0] - 2
-                    file_handle.seek(1, 1)
-                    height, width = struct.unpack('>HH', file_handle.read(4))
-                except unreadable:
-                    height, width = 0, 0
-            else:
-                return 0, 0
-        return width, height
+
+@register_image_displayer("sixel")
+class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
+    """Implementation of ImageDisplayer using SIXEL."""
+
+    def __init__(self):
+        self.win = None
+
+    def draw(self, path, start_x, start_y, width, height):
+        if self.win is None:
+            self.win = self.fm.ui.win.subwin(height, width, start_y, start_x)
+        else:
+            self.win.mvwin(start_y, start_x)
+            self.win.resize(height, width)
+
+        image_width, image_height = get_image_dimensions(path)
+        if width == 0 or height == 0 or image_width == 0 or image_height == 0:
+            return
+        image_width = image_fit_width(
+            image_width, image_height, width, height)
+
+        result = check_output(["convert", path + "[0]",
+                               "-geometry", "{0}x{1}".format(image_width, image_height),
+                               "sixel:-"])
+
+        with temporarily_moved_cursor(start_y, start_x):
+            sys.stdout.buffer.write(result)
+            sys.stdout.flush()
+
+    def clear(self, start_x, start_y, width, height):
+        if self.win is not None:
+            self.win.clear()
+            self.win.refresh()
+
+            self.win = None
+
+        self.fm.ui.win.redrawwin()
+        self.fm.ui.win.refresh()
+
+    def quit(self):
+        self.clear(0, 0, 0, 0)
 
 
 @register_image_displayer("terminology")
