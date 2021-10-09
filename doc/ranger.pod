@@ -310,6 +310,16 @@ This feature relies on the dimensions of the terminal's font.  By default, a
 width of 8 and height of 11 are used.  To use other values, set the options
 C<iterm2_font_width> and C<iterm2_font_height> to the desired values.
 
+=head3 sixel
+
+SIXEL is the industry standard for displaying images in terminals.
+
+Most mainstream terminal emulators include SIXEL support, for example:
+programs based on VTE >=0.68 (eg. GNOME Terminal), iTerm2, Mintty, etc.
+
+To enable this feature, install the program "convert" and set the option
+C<preview_images_method> to sixel.
+
 =head3 kitty
 
 This only works in Kitty. It requires PIL (or pillow) to work.
