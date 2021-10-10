@@ -68,16 +68,19 @@ def move_cur(to_y, to_x):
     bin_stdout.write(tparm)
 
 
+def get_terminal_size():
+    farg = struct.pack("HHHH", 0, 0, 0, 0)
+    fd_stdout = sys.stdout.fileno()
+    fretint = fcntl.ioctl(fd_stdout, termios.TIOCGWINSZ, farg)
+    return struct.unpack("HHHH", fretint)
+
+
 def get_font_dimensions():
     """
     Get the height and width of a character displayed in the terminal in
     pixels.
     """
-    farg = struct.pack("HHHH", 0, 0, 0, 0)
-    fd_stdout = sys.stdout.fileno()
-    fretint = fcntl.ioctl(fd_stdout, termios.TIOCGWINSZ, farg)
-    rows, cols, xpixels, ypixels = struct.unpack("HHHH", fretint)
-
+    rows, cols, xpixels, ypixels = get_terminal_size()
     return (xpixels // cols), (ypixels // rows)
 
 
@@ -403,18 +406,16 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
             self.win.mvwin(start_y, start_x)
             self.win.resize(height, width)
 
-        image_width, image_height = get_image_dimensions(path)
-        if width == 0 or height == 0 or image_width == 0 or image_height == 0:
-            return
-        image_width = image_fit_width(
-            image_width, image_height, width, height)
+        font_width, font_height = get_font_dimensions()
+        fit_width = font_width * width
+        fit_height = font_height * height
 
         sixel_extra_args = shlex.split(self.fm.settings.sixel_extra_args)
         result = check_output(["convert", path + "[0]",
                                "-geometry", "{0}x{1}"
-                                   .format(image_width, image_height)]
-                               + sixel_extra_args +
-                               ["sixel:-"],
+                               .format(fit_width, fit_height)]
+                              + sixel_extra_args
+                              + ["sixel:-"],
                               stderr=PIPE)
 
         with temporarily_moved_cursor(start_y, start_x):
