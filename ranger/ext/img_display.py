@@ -418,7 +418,10 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
                               stderr=PIPE)
 
         with temporarily_moved_cursor(start_y, start_x):
-            sys.stdout.write(result.encode())
+            if PY3:
+                sys.stdout.buffer.write(result)
+            else:
+                sys.stdout.write(result.encode())
             sys.stdout.flush()
 
     def clear(self, start_x, start_y, width, height):
