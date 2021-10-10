@@ -412,7 +412,7 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
 
         sixel_extra_args = shlex.split(self.fm.settings.sixel_extra_args)
         result = check_output(["convert", path + "[0]",
-                               "-geometry", "{0}x{1}"
+                               "-geometry", "{0}x{1}>"
                                .format(fit_width, fit_height)]
                               + sixel_extra_args
                               + ["sixel:-"],
