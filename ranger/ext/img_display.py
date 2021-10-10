@@ -108,10 +108,14 @@ def image_fit_width(width, height, max_cols, max_rows, font_width=None, font_hei
 
 def get_image_dimensions(path):
     """Determine image size using convert"""
-    width, height = check_output(["convert", path,
-                                  "-format", "%w %h", "info:"]) \
-        .split(b" ")
-    return int(width), int(height)
+    try:
+        width, height = check_output(["convert", path,
+                                      "-format", "%w %h", "info:"],
+                                     stderr=PIPE) \
+            .split(b" ")
+        return int(width), int(height)
+    except Exception:
+        return 0, 0
 
 
 class ImageDisplayError(Exception):
@@ -407,12 +411,14 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
 
         sixel_extra_args = shlex.split(self.fm.settings.sixel_extra_args)
         result = check_output(["convert", path + "[0]",
-                               "-geometry", "{0}x{1}".format(image_width, image_height),
-                               *sixel_extra_args,
-                               "sixel:-"])
+                               "-geometry", "{0}x{1}"
+                                   .format(image_width, image_height)]
+                               + sixel_extra_args +
+                               ["sixel:-"],
+                              stderr=PIPE)
 
         with temporarily_moved_cursor(start_y, start_x):
-            sys.stdout.buffer.write(result)
+            sys.stdout.write(result.encode())
             sys.stdout.flush()
 
     def clear(self, start_x, start_y, width, height):
