@@ -432,8 +432,6 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
             self.win = None
 
         self.fm.ui.win.redrawwin()
-        self.fm.ui.win.refresh()
-        self.fm.ui.win.redrawwin()
 
     def quit(self):
         self.clear(0, 0, 0, 0)
