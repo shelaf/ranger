@@ -17,6 +17,7 @@ import errno
 import fcntl
 import imghdr
 import os
+import shlex
 import struct
 import sys
 import warnings
@@ -404,8 +405,10 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
         image_width = image_fit_width(
             image_width, image_height, width, height)
 
+        sixel_extra_args = shlex.split(self.fm.settings.sixel_extra_args)
         result = check_output(["convert", path + "[0]",
                                "-geometry", "{0}x{1}".format(image_width, image_height),
+                               *sixel_extra_args,
                                "sixel:-"])
 
         with temporarily_moved_cursor(start_y, start_x):

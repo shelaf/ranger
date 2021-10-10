@@ -100,6 +100,7 @@ ALLOWED_SETTINGS = {
     'wrap_plaintext_previews': bool,
     'wrap_scroll': bool,
     'xterm_alt_key': bool,
+    'sixel_extra_args': str,
 }
 
 ALLOWED_VALUES = {

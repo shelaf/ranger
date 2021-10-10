@@ -234,7 +234,7 @@ C<urxvt> for image previews
 
 =item -
 
-C<convert> (from C<imagemagick>) to auto-rotate images and for SVG previews
+C<convert> (from C<imagemagick>) to auto-rotate images and for image previews
 
 =item -
 
@@ -317,8 +317,11 @@ SIXEL is the industry standard for displaying images in terminals.
 Most mainstream terminal emulators include SIXEL support, for example:
 programs based on VTE >=0.68 (eg. GNOME Terminal), iTerm2, Mintty, etc.
 
-To enable this feature, install the program "convert" and set the option
-C<preview_images_method> to sixel.
+To enable this feature, install the program C<convert> (from C<imagemagick>)
+and set the option C<preview_images_method> to sixel.
+
+Extra arguments (such as preferred dithering method) can be passed to convert
+by setting C<sixel_extra_args>.
 
 =head3 kitty
 
@@ -1325,6 +1328,10 @@ Increase it in case of experiencing display corruption.
 Offset in pixels for the inner border of the terminal. Some terminals require
 the offset to be specified explicitly, among others st and UXterm, some don't
 like urxvt.
+
+=item sixel_extra_args [string]
+
+Extra arguments passed to C<convert> when generating SIXEL image previews.
 
 =item wrap_plaintext_previews [bool]
 
