@@ -23,7 +23,7 @@ import sys
 import warnings
 import json
 import threading
-from subprocess import Popen, PIPE, check_output
+from subprocess import Popen, PIPE
 from collections import defaultdict
 
 import termios
@@ -34,6 +34,7 @@ from tempfile import NamedTemporaryFile
 from ranger import PY3
 from ranger.core.shared import FileManagerAware, SettingsAware
 from ranger.ext.popen23 import Popen23
+from ranger.ext.spawn import check_output
 
 W3MIMGDISPLAY_ENV = "W3MIMGDISPLAY_PATH"
 W3MIMGDISPLAY_OPTIONS = []
@@ -434,19 +435,16 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
         fit_width = font_width * width
         fit_height = font_height * height
 
-        sixel_extra_args = shlex.split(self.fm.settings.sixel_extra_args)
+        sixel_dithering = self.fm.settings.sixel_dithering
         result = check_output(["convert", path + "[0]",
                                "-geometry", "{0}x{1}>"
-                               .format(fit_width, fit_height)]
-                              + sixel_extra_args
-                              + ["sixel:-"],
+                               .format(fit_width, fit_height),
+                                "-dither", sixel_dithering,
+                                "sixel:-"],
                               stderr=PIPE)
 
         with temporarily_moved_cursor(start_y, start_x):
-            if PY3:
-                sys.stdout.buffer.write(result)
-            else:
-                sys.stdout.write(result.encode())
+            sys.stdout.write(result)
             sys.stdout.flush()
 
     def clear(self, start_x, start_y, width, height):
