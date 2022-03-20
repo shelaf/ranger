@@ -310,17 +310,21 @@ are automatically used when available but completely optional.
 .IP "\-" 2
 \&\f(CW\*(C`convert\*(C'\fR (from \f(CW\*(C`imagemagick\*(C'\fR) to auto-rotate images and for image previews
 .IP "\-" 2
+\&\f(CW\*(C`rsvg\-convert\*(C'\fR (from \f(CW\*(C`librsvg\*(C'\fR) for \s-1SVG\s0 previews
+.IP "\-" 2
 \&\f(CW\*(C`ffmpegthumbnailer\*(C'\fR for video thumbnails
 .IP "\-" 2
 \&\f(CW\*(C`highlight\*(C'\fR, \f(CW\*(C`bat\*(C'\fR or \f(CW\*(C`pygmentize\*(C'\fR for syntax highlighting of code
 .IP "\-" 2
 \&\f(CW\*(C`atool\*(C'\fR, \f(CW\*(C`bsdtar\*(C'\fR, \f(CW\*(C`unrar\*(C'\fR and/or \f(CW\*(C`7z\*(C'\fR to preview archives
 .IP "\-" 2
-\&\f(CW\*(C`bsdtar\*(C'\fR, \f(CW\*(C`tar\*(C'\fR, \f(CW\*(C`unrar\*(C'\fR, \f(CW\*(C`unzip\*(C'\fR and/or \f(CW\*(C`zipinfo\*(C'\fR (and \f(CW\*(C`sed\*(C'\fR) to preview archives as their first image
+\&\f(CW\*(C`bsdtar\*(C'\fR, \f(CW\*(C`tar\*(C'\fR, \f(CW\*(C`unrar\*(C'\fR, \f(CW\*(C`unzip\*(C'\fR and/or \f(CW\*(C`zipinfo\*(C'\fR (and \f(CW\*(C`sed\*(C'\fR) to preview
+archives as their first image
 .IP "\-" 2
 \&\f(CW\*(C`lynx\*(C'\fR, \f(CW\*(C`w3m\*(C'\fR or \f(CW\*(C`elinks\*(C'\fR to preview html pages
 .IP "\-" 2
-\&\f(CW\*(C`pdftotext\*(C'\fR or \f(CW\*(C`mutool\*(C'\fR (and \f(CW\*(C`fmt\*(C'\fR) for textual pdf previews, \f(CW\*(C`pdftoppm\*(C'\fR to preview as image
+\&\f(CW\*(C`pdftotext\*(C'\fR or \f(CW\*(C`mutool\*(C'\fR (and \f(CW\*(C`fmt\*(C'\fR) for textual pdf previews, \f(CW\*(C`pdftoppm\*(C'\fR to
+preview as image
 .IP "\-" 2
 \&\f(CW\*(C`djvutxt\*(C'\fR for textual DjVu previews, \f(CW\*(C`ddjvu\*(C'\fR to preview as image
 .IP "\-" 2
@@ -335,6 +339,11 @@ are automatically used when available but completely optional.
 \&\f(CW\*(C`python\*(C'\fR or \f(CW\*(C`jq\*(C'\fR for \s-1JSON\s0 files
 .IP "\-" 2
 \&\f(CW\*(C`fontimage\*(C'\fR for font previews
+.IP "\-" 2
+\&\f(CW\*(C`openscad\*(C'\fR for 3D model previews (stl, off, dxf, scad, csg)
+.IP "\-" 2
+\&\f(CW\*(C`draw.io\*(C'\fR for draw.io <https://app.diagrams.net/> diagram previews (drawio
+extension)
 .RE
 .RS 2
 .RE
@@ -1469,8 +1478,8 @@ following \f(CW\*(C`FILTER_TYPE\*(C'\fRs are available:
 Filter files so only files that have duplicates in the same directory are
 shown. Useful when cleaning up identical songs and memes that were saved using
 distinct file names.
-.IP "filename \s-1NAME\s0" 2
-.IX Item "filename NAME"
+.IP "name \s-1NAME\s0" 2
+.IX Item "name NAME"
 Filter files that contain \s-1NAME\s0 in the filename, regular expression syntax is
 allowed.
 .IP "hash \s-1PATH\s0" 2
