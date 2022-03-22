@@ -22,19 +22,19 @@ import struct
 import sys
 import warnings
 import json
+import mmap
 import threading
-from subprocess import Popen, PIPE
-from collections import defaultdict
+from subprocess import Popen, PIPE, call
+from collections import defaultdict, namedtuple
 
 import termios
 from contextlib import contextmanager
 import codecs
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryFile, NamedTemporaryFile
 
 from ranger import PY3
 from ranger.core.shared import FileManagerAware, SettingsAware
 from ranger.ext.popen23 import Popen23
-from ranger.ext.spawn import check_output
 
 W3MIMGDISPLAY_ENV = "W3MIMGDISPLAY_PATH"
 W3MIMGDISPLAY_OPTIONS = []
@@ -417,12 +417,42 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):
         return width, height
 
 
+_CachableSixelImage = namedtuple("_CachableSixelImage", ("path", "width", "height"))
+
+_CachedSixelImage = namedtuple("_CachedSixelImage", ("image", "fh"))
+
+
 @register_image_displayer("sixel")
 class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
     """Implementation of ImageDisplayer using SIXEL."""
 
     def __init__(self):
         self.win = None
+        self.cache = {}
+
+    def _sixel_cache(self, path, width, height):
+        cachable = _CachableSixelImage(path, width, height)
+
+        if cachable not in self.cache:
+            font_width, font_height = get_font_dimensions()
+            fit_width = font_width * width
+            fit_height = font_height * height
+
+            sixel_dithering = self.fm.settings.sixel_dithering
+            cached = TemporaryFile("w+")
+
+            call(["convert", path + "[0]",
+                  "-geometry", "{0}x{1}>"
+                  .format(fit_width, fit_height),
+                   "-dither", sixel_dithering,
+                   "sixel:-"],
+                 stdout=cached,
+                 stderr=PIPE)
+            cached.flush()
+
+            self.cache[cachable] = _CachedSixelImage(mmap.mmap(cached.fileno(), 0), cached)
+
+        return self.cache[cachable].image
 
     def draw(self, path, start_x, start_y, width, height):
         if self.win is None:
@@ -431,20 +461,12 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
             self.win.mvwin(start_y, start_x)
             self.win.resize(height, width)
 
-        font_width, font_height = get_font_dimensions()
-        fit_width = font_width * width
-        fit_height = font_height * height
-
-        sixel_dithering = self.fm.settings.sixel_dithering
-        result = check_output(["convert", path + "[0]",
-                               "-geometry", "{0}x{1}>"
-                               .format(fit_width, fit_height),
-                                "-dither", sixel_dithering,
-                                "sixel:-"],
-                              stderr=PIPE)
-
         with temporarily_moved_cursor(start_y, start_x):
-            sys.stdout.write(result)
+            sixel = self._sixel_cache(path, width, height)[:]
+            if PY3:
+                sys.stdout.buffer.write(sixel)
+            else:
+                sys.stdout.write(sixel)
             sys.stdout.flush()
 
     def clear(self, start_x, start_y, width, height):
@@ -458,6 +480,7 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
 
     def quit(self):
         self.clear(0, 0, 0, 0)
+        self.cache = {}
 
 
 @register_image_displayer("terminology")
