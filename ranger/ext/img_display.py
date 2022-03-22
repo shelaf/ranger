@@ -36,6 +36,8 @@ from ranger import PY3
 from ranger.core.shared import FileManagerAware, SettingsAware
 from ranger.ext.popen23 import Popen23
 
+_LRU_CACHE_CAPACITY = 32
+
 W3MIMGDISPLAY_ENV = "W3MIMGDISPLAY_PATH"
 W3MIMGDISPLAY_OPTIONS = []
 W3MIMGDISPLAY_PATHS = [
@@ -417,7 +419,7 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):
         return width, height
 
 
-_CachableSixelImage = namedtuple("_CachableSixelImage", ("path", "width", "height"))
+_CachableSixelImage = namedtuple("_CachableSixelImage", ("width", "height", "inode", "mtime"))
 
 _CachedSixelImage = namedtuple("_CachedSixelImage", ("image", "fh"))
 
@@ -431,7 +433,8 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
         self.cache = {}
 
     def _sixel_cache(self, path, width, height):
-        cachable = _CachableSixelImage(path, width, height)
+        stat = os.stat(path)
+        cachable = _CachableSixelImage(width, height, stat.st_ino, stat.st_mtime)
 
         if cachable not in self.cache:
             font_width, font_height = get_font_dimensions()
@@ -451,6 +454,9 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
             cached.flush()
 
             self.cache[cachable] = _CachedSixelImage(mmap.mmap(cached.fileno(), 0), cached)
+
+            if len(self.cache) > _LRU_CACHE_CAPACITY:
+                self.cache = dict(tuple(self.cache.items())[-_LRU_CACHE_CAPACITY:])
 
         return self.cache[cachable].image
 
