@@ -24,7 +24,7 @@ import warnings
 import json
 import mmap
 import threading
-from subprocess import Popen, PIPE, call
+from subprocess import Popen, PIPE, check_call, CalledProcessError
 from collections import defaultdict, namedtuple
 
 import termios
@@ -35,8 +35,6 @@ from tempfile import TemporaryFile, NamedTemporaryFile
 from ranger import PY3
 from ranger.core.shared import FileManagerAware, SettingsAware
 from ranger.ext.popen23 import Popen23
-
-_LRU_CACHE_CAPACITY = 32
 
 W3MIMGDISPLAY_ENV = "W3MIMGDISPLAY_PATH"
 W3MIMGDISPLAY_OPTIONS = []
@@ -419,7 +417,7 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):
         return width, height
 
 
-_CachableSixelImage = namedtuple("_CachableSixelImage", ("width", "height", "inode", "mtime"))
+_CacheableSixelImage = namedtuple("_CacheableSixelImage", ("width", "height", "inode"))
 
 _CachedSixelImage = namedtuple("_CachedSixelImage", ("image", "fh"))
 
@@ -431,12 +429,16 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
     def __init__(self):
         self.win = None
         self.cache = {}
+        self.fm.signal_bind('preview.cleared', lambda signal: self._clear_cache(signal.path))
+
+    def _clear_cache(self, path):
+        self.cache = {ce: cd for ce, cd in self.cache.items() if ce.path != path}
 
     def _sixel_cache(self, path, width, height):
         stat = os.stat(path)
-        cachable = _CachableSixelImage(width, height, stat.st_ino, stat.st_mtime)
+        cacheable = _CacheableSixelImage(width, height, stat.st_ino)
 
-        if cachable not in self.cache:
+        if cacheable not in self.cache:
             font_width, font_height = get_font_dimensions()
             fit_width = font_width * width
             fit_height = font_height * height
@@ -444,21 +446,25 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
             sixel_dithering = self.fm.settings.sixel_dithering
             cached = TemporaryFile("w+")
 
-            call(["convert", path + "[0]",
-                  "-geometry", "{0}x{1}>"
-                  .format(fit_width, fit_height),
-                   "-dither", sixel_dithering,
-                   "sixel:-"],
-                 stdout=cached,
-                 stderr=PIPE)
-            cached.flush()
+            try:
+                check_call(["convert", path + "[0]",
+                            "-geometry", "{0}x{1}>"
+                            .format(fit_width, fit_height),
+                             "-dither", sixel_dithering,
+                             "sixel:-"],
+                           stdout=cached,
+                           stderr=PIPE)
+            except CalledProcessError:
+                raise ImageDisplayError("ImageMagick failed processing the SIXEL image")
+            finally:
+                cached.flush()
 
-            self.cache[cachable] = _CachedSixelImage(mmap.mmap(cached.fileno(), 0), cached)
+            if os.fstat(cached.fileno()).st_size == 0:
+                raise ImageDisplayError("ImageMagick produced an empty SIXEL image file")
 
-            if len(self.cache) > _LRU_CACHE_CAPACITY:
-                self.cache = dict(tuple(self.cache.items())[-_LRU_CACHE_CAPACITY:])
+            self.cache[cacheable] = _CachedSixelImage(mmap.mmap(cached.fileno(), 0), cached)
 
-        return self.cache[cachable].image
+        return self.cache[cacheable].image
 
     def draw(self, path, start_x, start_y, width, height):
         if self.win is None:
