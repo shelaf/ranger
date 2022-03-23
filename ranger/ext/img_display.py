@@ -432,7 +432,7 @@ class SixelImageDisplayer(ImageDisplayer, FileManagerAware):
         self.fm.signal_bind('preview.cleared', lambda signal: self._clear_cache(signal.path))
 
     def _clear_cache(self, path):
-        self.cache = {ce: cd for ce, cd in self.cache.items() if ce.path != path}
+        self.cache = {ce: cd for ce, cd in self.cache.items() if ce.inode != os.stat(path).st_ino}
 
     def _sixel_cache(self, path, width, height):
         stat = os.stat(path)
